@@ -263,7 +263,7 @@ class CompilerContainer {
 
   compile (event) {
     if (this.config.get('currentFile')) {
-      if(!this.data.selectedVersion.includes('nightly')){
+      if (!this.data.selectedVersion.includes('nightly')) {
         this._setCompilerVersionFromPragma(this.config.get('currentFile'))
       }
       this.compileTabLogic.runCompiler()
