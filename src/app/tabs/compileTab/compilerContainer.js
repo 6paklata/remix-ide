@@ -118,33 +118,17 @@ class CompilerContainer {
 
   _setCompilerVersionFromPragma (filename) {
     this.compileTabLogic.fileManager.getFile(filename).then(data => {
-      let pragmaArr = data.match(/(pragma solidity (.+?);)/g)
+      const pragmaArr = data.match(/(pragma solidity (.+?);)/g)
       if (pragmaArr && pragmaArr.length === 1) {
-        let pragmaStr = pragmaArr[0].replace('pragma solidity', '').trim()
-        let pragma = {}
-        if (pragmaStr.charAt(0) === '^') {
-          pragma.start = pragmaStr.substring(1, pragmaStr.length - 1)
-          pragma.isFixed = true
-        } else if (pragmaStr.charAt(0) === '>') {
-          if (pragmaStr.indexOf('<') > -1) {
-            pragma.start = pragmaStr.substring(pragmaStr.indexOf('>') + 1, pragmaStr.indexOf('<')).trim()
-            pragma.end = pragmaStr.substring(pragmaStr.indexOf('<') + 1, pragmaStr.indexOf(';')).trim()
-            if (pragma.end.charAt(0) === '=') {
-              pragma.end = pragma.end.substring(1)
-              pragma.endInclusive = true
-            }
-          } else {
-            pragma.start = pragmaStr.substring(pragmaStr.indexOf('>') + 1, pragmaStr.indexOf(';')).trim()
-          }
-          if (pragma.start.charAt(0) === '=') {
-            pragma.start = pragma.start.substring(1)
-            pragma.startInclusive = true
-          }
-        } else {
-          pragma.start = pragmaStr.substring(0, pragmaStr.length - 1)
-          pragma.isFixed = true
+        const pragmaStr = pragmaArr[0].replace('pragma solidity', '').trim()
+        const pragma = pragmaStr.substring(0, pragmaStr.length - 1)
+        const fixedVersions = this.data.allversions.filter(obj => !obj.prerelease).map(obj => obj.version)
+        const compilerToLoad = semver.maxSatisfying(fixedVersions, pragma)
+        const compilerPath = this.data.allversions.filter(obj => !obj.prerelease && obj.version === compilerToLoad)[0].path
+        if (this.data.selectedVersion !== compilerPath) {
+          this.data.selectedVersion = compilerPath
+          this._updateVersionSelector()
         }
-        this._updateVersionSelector(pragma)
       }
     })
   }
@@ -326,54 +310,11 @@ class CompilerContainer {
            (version.includes('nightly') && this._view.includeNightlies.checked)
   }
 
-  /**
-   * Update & load compiler
-   * @param {Object} pragma - Pragma version information
-   * @param {string} pragma.start - Version of pragma, Start in case of range
-   * @param {boolean} [pragma.startInclusive] - true, if start version is inclusive in range
-   * @param {string} [pragma.end] - End version of pragma in case of range
-   * @param {boolean} [pragma.endInclusive] - true, if end version is inclusive in range
-   * @param {boolean} [pragma.isFixed] - true, if pragma is not a range
-   */
-  _updateVersionSelector (pragma = null) {
+  _updateVersionSelector () {
     // update selectedversion of previous one got filtered out
     if (!this._shouldBeAdded(this.data.selectedVersion)) {
       this.data.selectedVersion = this.data.defaultVersion
     }
-    if (pragma && pragma.start) {
-      const allversions = this.data.allversions.filter(build => (!build.prerelease))
-      const startIndex = allversions.findIndex(build => build.version === pragma.start)
-      if (startIndex > -1) {
-        let selectedVersion
-        if (pragma.isFixed) {
-          selectedVersion = allversions[startIndex].path
-        } else {
-          let maxIndex = 0
-          if (pragma.end) {
-            let endIndex = allversions.findIndex(build => build.version === pragma.end)
-            if (endIndex > -1) {
-              if (!pragma.endInclusive) {
-                endIndex += 1
-              }
-              if (startIndex === endIndex && !pragma.startInclusive) {
-                endIndex = -1
-              }
-              maxIndex = endIndex
-            }
-          }
-          if (maxIndex > -1) {
-            selectedVersion = allversions[maxIndex].path
-          }
-        }
-        if (this.data.selectedVersion === selectedVersion) {
-          // No need to reload same compiler
-          return
-        } else {
-          this.data.selectedVersion = selectedVersion
-        }
-      }
-    }
-
     this._view.versionSelector.innerHTML = ''
     this.data.allversions.forEach(build => {
       const option = build.path === this.data.selectedVersion
